@@ -362,13 +362,16 @@ int gdev_minor_init(int physid)
 	int i, j;
 	struct drm_device *drm;
 
+	GDEV_PRINT("DEBUG: enter gdev_minor_init device %d\n", physid);
 	if (gdev_drv_getdrm(physid, &drm)) {
 		GDEV_PRINT("Could not find device %d\n", physid);
 		return -EINVAL;
 	}
 
 	/* initialize the physical device. */
+	GDEV_PRINT("DEBUG: init_device %d started\n", physid);
 	gdev_init_device(&gdevs[physid], physid, drm);
+	GDEV_PRINT("DEBUG: init_device %d finished\n", physid);
 
 	j = 0;
 	for (i = 0; i < physid; i++)
@@ -488,6 +491,7 @@ int gdev_major_init(void)
 	gdev_drv_setnotify(__gdev_notify_handler);
 #endif
 
+	GDEV_PRINT("DEBUG: major init finished\n");
 	return 0;
 
 fail_proc_create:
@@ -515,6 +519,7 @@ int gdev_major_exit(void)
 {
 	int i;
 
+	GDEV_PRINT("DEBUG: major exit started\n");
 #ifndef GDEV_SCHED_DISABLED
 	gdev_drv_unsetnotify(__gdev_notify_handler);
 #endif
@@ -600,6 +605,7 @@ static int __init gdev_module_init(void)
 		goto end;
 	}
 
+	GDEV_PRINT("DEBUG: module loaded\n");
 	for (i = 0; i < gdev_count; i++) {
 		if (gdev_minor_init(i)) {
 			for (i = i - 1; i >= 0; i--)
@@ -610,6 +616,7 @@ static int __init gdev_module_init(void)
 	}
 
 end:
+	GDEV_PRINT("DEBUG: module loading finished\n");
 	return 0;
 }
 

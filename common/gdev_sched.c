@@ -41,6 +41,7 @@ int gdev_init_scheduler(struct gdev_device *gdev)
 {
 	struct gdev_device *phys = gdev->parent;
 
+	GDEV_PRINT("Init scheduler on Gdev#%d\n", gdev->id);
 	/* create scheduler threads. OS runtime and user-space runtime behave
 	   differently on this function call. */
 	gdev_sched_create_scheduler(gdev);

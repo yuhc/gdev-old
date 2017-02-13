@@ -70,10 +70,12 @@ CUresult cuModuleLoad(CUmodule *module, const char *fname)
 	}
 
 	/* load the cubin image from the given object file. */
+	GDEV_PRINT("DEBUG: try to load cubin %s\n", fname);
 	if ((res = gdev_cuda_load_cubin(mod, fname)) != CUDA_SUCCESS) {
 		GDEV_PRINT("Failed to load cubin\n");
 		goto fail_load_cubin;
 	}
+	GDEV_PRINT("DEBUG: cubin %s loaded\n", fname);
 
 	/* check compatibility of code and device. */
 	if ((ctx->cuda_info.chipset & 0xff) != mod->arch) {
@@ -87,6 +89,7 @@ CUresult cuModuleLoad(CUmodule *module, const char *fname)
 		GDEV_PRINT("Failed to construct kernels\n");
 		goto fail_construct_kernels;
 	}
+	GDEV_PRINT("DEBUG: cuda kernel constructed\n");
 
 	/* allocate (local) static data memory. */
 	if (mod->sdata_size > 0) {
@@ -96,24 +99,29 @@ CUresult cuModuleLoad(CUmodule *module, const char *fname)
 			goto fail_gmalloc_sdata;
 		}
 	}
+	GDEV_PRINT("DEBUG: static data memory allocated\n");
 
 	/* locate the static data information for each kernel. */
 	if ((res = gdev_cuda_locate_sdata(mod)) != CUDA_SUCCESS) {
 		GDEV_PRINT("Failed to locate static data\n");
 		goto fail_locate_sdata;
 	}
+	GDEV_PRINT("DEBUG: static data memory located\n");
 
 	/* allocate code and constant memory. */
 	if (!(mod->code_addr = gmalloc(handle, mod->code_size))) {
 		GDEV_PRINT("Failed to allocate device memory for code\n");
 		goto fail_gmalloc_code;
 	}
+	GDEV_PRINT("DEBUG: constant memory allocated\n");
+
 
 	/* locate the code information for each kernel. */
 	if ((res = gdev_cuda_locate_code(mod)) != CUDA_SUCCESS) {
 		GDEV_PRINT("Failed to locate code\n");
 		goto fail_locate_code;
 	}
+	GDEV_PRINT("DEBUG: constant memory located\n");
 
 
 	/* the following malloc() and memcpy() for bounce buffer could be 
@@ -125,19 +133,23 @@ CUresult cuModuleLoad(CUmodule *module, const char *fname)
 		goto fail_malloc_code;
 	}
 	memset(bnc_buf, 0, mod->code_size);
+	GDEV_PRINT("DEBUG: host memory allocated\n");
 
 	if ((res = gdev_cuda_memcpy_code(mod, bnc_buf)) 
 		!= CUDA_SUCCESS) {
 		GDEV_PRINT("Failed to copy code to host\n");
 		goto fail_memcpy_code;
 	}
+	GDEV_PRINT("DEBUG: code copied to host\n");
 
 	/* transfer the code and constant memory onto the device. */
+	GDEV_PRINT("DEBUG: transfer code[%u]@%lp to device\n", mod->code_size, mod->code_addr);
 	if (gmemcpy_to_device(handle, mod->code_addr, bnc_buf, mod->code_size)) {
 		GDEV_PRINT("Failed to copy code to device\n");
 		res = CUDA_ERROR_UNKNOWN;
 		goto fail_gmemcpy_code;
 	}
+	GDEV_PRINT("DEBUG: code transfered to device\n");
 
 	/* free the bounce buffer now. */
 	FREE(bnc_buf);

@@ -130,6 +130,7 @@ static int __gmemcpy_to_device_p(gdev_ctx_t *ctx, uint64_t dst_addr, const void 
 	}
 
 	offset = 0;
+	GDEV_PRINT("enter gmemcpy2device_p for-loop\n");
 	for (;;) {
 		for (i = 0; i < p_count; i++) {
 			dma_size = __min(rest_size, ch_size);
@@ -174,12 +175,16 @@ static int __gmemcpy_to_device_np(gdev_ctx_t *ctx, uint64_t dst_addr, const void
 
 	/* copy data by the chunk size. */
 	offset = 0;
+	GDEV_PRINT("enter gmemcpy2device_p while-loop\n");
 	while (rest_size) {
 		dma_size = __min(rest_size, ch_size);
+		GDEV_PRINT("while-loop: host_copy[%x]\n", dma_size);
 		ret = host_copy(dma_buf[0], src_buf + offset, dma_size);
 		if (ret)
 			goto end;
+		GDEV_PRINT("while-loop: gdev_memcpy[%x]\n", dma_size);
 		fence = gdev_memcpy(ctx, dst_addr + offset, dma_addr[0], dma_size);
+		GDEV_PRINT("while-loop: gdev_poll\n");
 		gdev_poll(ctx, fence, NULL);
 		rest_size -= dma_size;
 		offset += dma_size;
@@ -227,15 +232,20 @@ static int __gmemcpy_to_device_locked(gdev_ctx_t *ctx, uint64_t dst_addr, const 
 			*id = 0;
 	}
 	else if (size <= GDEV_MEMCPY_IORW_LIMIT && mem->map) {
+		GDEV_PRINT("gmemcy2device_locked: gdev_write @%lp started\n", dst_addr);
 		ret = gdev_write(mem, dst_addr, src_buf, size);
+		GDEV_PRINT("gmemcy2device_locked: gdev_write @%lp finished\n", dst_addr);
 		/* if @id is give while not asynchronous, give it zero. */
 		if (id)
 			*id = 0;
 	}
 	else if ((hmem = gdev_mem_lookup_by_buf(vas, src_buf, GDEV_MEM_DMA))) {
+		GDEV_PRINT("gmemcy2device_locked: dma @%lp started\n", dst_addr);
 		ret = __gmemcpy_dma_to_device(ctx, dst_addr, hmem->addr, size, id);
+		GDEV_PRINT("gmemcy2device_locked: dma @%lp finished\n", dst_addr);
 	}
 	else {
+		GDEV_PRINT("gmemcy2device_locked: other case\n");
 		/* prepare bounce buffer memory. */
 		if (!dma_mem) {
 			bmem = __malloc_dma(vas, __min(size, ch_size), p_count);
@@ -245,11 +255,17 @@ static int __gmemcpy_to_device_locked(gdev_ctx_t *ctx, uint64_t dst_addr, const 
 		else
 			bmem = dma_mem;
 
+		GDEV_PRINT("copy memory to device started\n");
 		/* copy memory to device. */
-		if (p_count > 1 && size > ch_size)
+		if (p_count > 1 && size > ch_size) {
+			GDEV_PRINT("gmemcpy2device_p is called\n");
 			ret = __gmemcpy_to_device_p(ctx, dst_addr, src_buf, size, ch_size, p_count, bmem, host_copy);
-		else
+		}
+		else {
+			GDEV_PRINT("gmemcpy2device_np is called\n");
 			ret = __gmemcpy_to_device_np(ctx, dst_addr, src_buf, size, ch_size, bmem, host_copy);
+		}
+		GDEV_PRINT("copy memory to device finished\n");
 
 		/* free bounce buffer memory, if necessary. */
 		if (!dma_mem)
@@ -280,21 +296,27 @@ static int __gmemcpy_to_device(struct gdev_handle *h, uint64_t dst_addr, const v
 	int p_count = h->pipeline_count;
 	int ret;
 
+	GDEV_PRINT("mem_lookup_by_addr %lp started\n", dst_addr);
 	mem = gdev_mem_lookup_by_addr(vas, dst_addr, GDEV_MEM_DEVICE);
 	if (!mem)
 		return -ENOENT;
+	GDEV_PRINT("mem_lookup_by_addr %lp finished\n", dst_addr);
 
 #ifndef GDEV_SCHED_DISABLED
 	/* decide if the context needs to stall or not. */
 	gdev_schedule_memory(se);
 #endif
 
+	GDEV_PRINT("mem looked\n");
 	gdev_mem_lock(mem);
 
 	gdev_shm_evict_conflict(ctx, mem); /* evict conflicting data. */
+	GDEV_PRINT("conflicting data evicted\n");
 	ret = __gmemcpy_to_device_locked(ctx, dst_addr, src_buf, size, id, ch_size, p_count, vas, mem, dma_mem, host_copy);
+	GDEV_PRINT("gmemcpy core function finished\n");
 
 	gdev_mem_unlock(mem);
+	GDEV_PRINT("mem released\n");
 
 #ifndef GDEV_SCHED_DISABLED
 	/* select the next context by itself, since memcpy is sychronous. */
@@ -631,6 +653,7 @@ struct gdev_handle *gopen(int minor)
 		GDEV_PRINT("Failed to create a context object\n");
 		goto fail_ctx;
 	}
+	GDEV_PRINT("Created context object on gdev%d\n", minor);
 
 	/* allocate static bounce bound buffer objects. */
 	dma_mem = __malloc_dma(vas, GDEV_CHUNK_DEFAULT_SIZE, h->pipeline_count);
@@ -638,6 +661,7 @@ struct gdev_handle *gopen(int minor)
 		GDEV_PRINT("Failed to allocate static DMA buffer object\n");
 		goto fail_dma;
 	}
+	GDEV_PRINT("Created DMA object on gdev%d\n", minor);
 
 #ifndef GDEV_SCHED_DISABLED
 	/* allocate a scheduling entity. */
@@ -646,6 +670,7 @@ struct gdev_handle *gopen(int minor)
 		GDEV_PRINT("Failed to allocate scheduling entity\n");
 		goto fail_se;
 	}
+	GDEV_PRINT("Created scheduling entity on gdev%d\n", minor);
 #endif
 	
 	/* now other users can access the GPU. */
