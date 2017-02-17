@@ -32,6 +32,8 @@
 /* set up the architecture-dependent compute engine. */
 int gdev_compute_setup(struct gdev_device *gdev)
 {
+    GDEV_PRINT("DEBUG: gdev_compute_setup dev=%x\n", gdev->chipset & 0xf0);
+
     switch (gdev->chipset & 0xf0) {
     case 0xC0:
 		nvc0_compute_setup(gdev);
@@ -70,14 +72,17 @@ uint32_t gdev_launch(struct gdev_ctx *ctx, struct gdev_kernel *kern)
 	if (++ctx->fence.seq == GDEV_FENCE_COUNT)
 		ctx->fence.seq = 1;
 	seq = ctx->fence.seq;
+    	GDEV_PRINT("DEBUG: gdev_launch seq=%x, GFENCE=%x\n", ctx->fence.seq, GDEV_FENCE_COUNT);
 
 	compute->membar(ctx);
 	/* it's important to emit a fence *after* launch():
 	   the LAUNCH method of the PGRAPH engine is not associated with
 	   the QUERY method, i.e., we have to submit the QUERY method 
 	   explicitly after the kernel is launched. */
+    	GDEV_PRINT("DEBUG: gdev_launch fence_reset seq=%x\n", ctx->fence.seq);
 	compute->fence_reset(ctx, seq);
 	compute->launch(ctx, kern);
+    	GDEV_PRINT("DEBUG: gdev_launch fence_write seq=%x cmd=%x\n", ctx->fence.seq, GDEV_OP_COMPUTE);
 	compute->fence_write(ctx, GDEV_OP_COMPUTE, seq);
 
 #ifndef GDEV_SCHED_DISABLED
@@ -105,7 +110,9 @@ uint32_t gdev_memcpy(struct gdev_ctx *ctx, uint64_t dst_addr, uint64_t src_addr,
 	   the EXEC method of the PCOPY and M2MF engines is associated with
 	   the QUERY method, i.e., if QUERY is set, the sequence will be 
 	   written to the specified address when the data are transfered. */
+    	GDEV_PRINT("DEBUG: gdev_memcpy fence_reset seq=%x\n", ctx->fence.seq);
 	compute->fence_reset(ctx, seq);
+    	GDEV_PRINT("DEBUG: gdev_memcpy fence_write seq=%x cmd=%x\n", ctx->fence.seq, GDEV_OP_MEMCPY);
 	compute->fence_write(ctx, GDEV_OP_MEMCPY /* == M2MF */, seq);
 	compute->memcpy(ctx, dst_addr, src_addr, size);
 
@@ -167,11 +174,17 @@ int gdev_poll(struct gdev_ctx *ctx, uint32_t seq, struct gdev_time *timeout)
 	struct gdev_vas *vas = ctx->vas;
 	struct gdev_device *gdev = vas->gdev;
 	struct gdev_compute *compute = gdev->compute;
+	uint32_t seq_read;
+	uint32_t seq_printed = 0;
 
 	gdev_time_stamp(&time_start);
 	gdev_time_ms(&time_relax, 100); /* relax polling when 100 ms elapsed. */
 
-	while (seq != compute->fence_read(ctx, seq)) {
+	while (seq != (seq_read = compute->fence_read(ctx, seq))) {
+		if (!seq_printed) {
+			GDEV_PRINT("gdev_poll while-loop, seq=%x,seq_read=%x\n", seq, seq_read);
+			seq_printed = 1;
+		}
 		gdev_time_stamp(&time_now);
 		/* time_elapse = time_now - time_start */
 		gdev_time_sub(&time_elapse, &time_now, &time_start);

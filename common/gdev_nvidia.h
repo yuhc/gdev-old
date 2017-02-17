@@ -273,6 +273,7 @@ static inline void __gdev_out_ring(struct gdev_ctx *ctx, uint32_t word)
 	ctx->fifo.pb_map[ctx->fifo.pb_pos/4] = word;
 	ctx->fifo.pb_pos += 4;
 	ctx->fifo.pb_pos &= ctx->fifo.pb_mask;
+	GDEV_PRINT("DEBUG: out_ring word=%x\n", word);
 }
 
 static inline void __gdev_begin_ring_nv50(struct gdev_ctx *ctx, int subc, int mthd, int len)

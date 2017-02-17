@@ -184,11 +184,12 @@ static int __gmemcpy_to_device_np(gdev_ctx_t *ctx, uint64_t dst_addr, const void
 			goto end;
 		GDEV_PRINT("while-loop: gdev_memcpy[%x]\n", dma_size);
 		fence = gdev_memcpy(ctx, dst_addr + offset, dma_addr[0], dma_size);
-		GDEV_PRINT("while-loop: gdev_poll\n");
+		GDEV_PRINT("while-loop: gdev_poll, fence=%u\n", fence);
 		gdev_poll(ctx, fence, NULL);
 		rest_size -= dma_size;
 		offset += dma_size;
 	}
+	GDEV_PRINT("exit gmemcpy2device_p while-loop\n");
 
 end:
 	return ret;

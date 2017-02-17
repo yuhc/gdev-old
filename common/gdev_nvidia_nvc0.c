@@ -410,6 +410,7 @@ static void nvc0_init(struct gdev_ctx *ctx)
 	struct gdev_device *gdev = vas->gdev;
 
 	/* initialize the fence values. */
+	GDEV_PRINT("DEBUG: nvc0_init fence count\n");
 	for (i = 0; i < GDEV_FENCE_COUNT; i++)
 		nvc0_fence_reset(ctx, i);
 
